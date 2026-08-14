@@ -159,9 +159,10 @@ export function buildSchedule(commits) {
  * SonifierPlayer wraps Tone.js. It owns one PolySynth per voice, plus a
  * shared reverb, and schedules a playback schedule on the Transport.
  *
- * Callbacks let the UI/visual react in sync:
- *   onEvent(entry)  fired (via Tone.Draw) exactly when each note sounds
- *   onEnd()         fired when the piece finishes
+ * Visual sync is NOT driven from here — the TimelineRenderer reads this
+ * player's `seconds` (the Transport clock) every animation frame and detects
+ * note crossings itself, which keeps pulses/labels frame-tight with the audio
+ * without relying on Tone.Draw.
  */
 export class SonifierPlayer {
   constructor() {
@@ -171,8 +172,6 @@ export class SonifierPlayer {
     this.noiseCue = null; // for "fix" cue
     this._built = false;
     this._eventIds = [];
-    this.onEvent = null;
-    this.onEnd = null;
   }
 
   _build() {
@@ -230,22 +229,11 @@ export class SonifierPlayer {
         if (entry.cue === 'revert') {
           this.metalCue.triggerAttackRelease('16n', time);
         } else if (entry.cue === 'fix') {
-          this.noiseCue.triggerAttackRelease('16n', time);
-        }
-
-        // Fire the visual/UI callback exactly in sync with the audio.
-        if (this.onEvent) {
-          Tone.getDraw().schedule(() => this.onEvent(entry), time);
+          this.noiseCue.triggerAttackRelease('16n', time, 0.7);
         }
       }, entry.time);
       this._eventIds.push(id);
     }
-
-    // Schedule the end.
-    const endId = transport.schedule((time) => {
-      if (this.onEnd) Tone.getDraw().schedule(() => this.onEnd(), time);
-    }, schedule.totalDuration);
-    this._eventIds.push(endId);
 
     transport.start();
   }

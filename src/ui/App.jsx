@@ -28,18 +28,19 @@ export default function App() {
     rendererRef.current = renderer;
 
     const player = new SonifierPlayer();
-    player.onEvent = (entry) => {
-      renderer.pulse(entry.index);
-      setNowPlaying(entry);
-    };
-    player.onEnd = () => {
-      setStatus('ready');
-      setNowPlaying(null);
+    playerRef.current = player;
+
+    // Renderer reads the Transport clock and reports crossings, keeping the
+    // "now playing" label and pulses frame-tight with the audio.
+    renderer.bindPlayhead(() => player.seconds);
+    renderer.onCross = (entry) => setNowPlaying(entry);
+    renderer.onEnd = () => {
+      player.stop();
       renderer.stop();
       renderer.reset();
+      setStatus('ready');
+      setNowPlaying(null);
     };
-    playerRef.current = player;
-    renderer.bindPlayhead(() => player.seconds);
 
     return () => {
       renderer.dispose();

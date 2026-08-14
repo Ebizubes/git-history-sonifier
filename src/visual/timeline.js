@@ -33,6 +33,10 @@ export class TimelineRenderer {
     this._raf = null;
     this._running = false;
     this._getPlayhead = null; // function returning current seconds
+    this._lastPlayhead = 0; // for crossing detection
+    this._ended = false;
+    this.onCross = null; // (entry) => void, fired when a note is reached
+    this.onEnd = null; // () => void, fired when the piece finishes
 
     this._resize = this._resize.bind(this);
     this._loop = this._loop.bind(this);
@@ -54,6 +58,8 @@ export class TimelineRenderer {
     }
     this.pulses.clear();
     this.playhead = 0;
+    this._lastPlayhead = -0.001; // so a note at time 0 still registers
+    this._ended = false;
     this.draw();
   }
 
@@ -81,6 +87,8 @@ export class TimelineRenderer {
 
   reset() {
     this.playhead = 0;
+    this._lastPlayhead = -0.001; // so a note at time 0 still registers
+    this._ended = false;
     this.pulses.clear();
     this.draw();
   }
@@ -100,6 +108,25 @@ export class TimelineRenderer {
   _loop() {
     if (!this._running) return;
     if (this._getPlayhead) this.playhead = this._getPlayhead();
+
+    // Crossing detection: fire pulse + onCross for any note the playhead
+    // passed since the last frame. Same clock as the audio, so it's in sync.
+    const prev = this._lastPlayhead;
+    const now = this.playhead;
+    if (now >= prev) {
+      for (const e of this.schedule) {
+        if (e.time > prev && e.time <= now) {
+          this.pulse(e.index);
+          if (this.onCross) this.onCross(e);
+        }
+      }
+      if (!this._ended && this.total > 0 && now >= this.total) {
+        this._ended = true;
+        if (this.onEnd) this.onEnd();
+      }
+    }
+    this._lastPlayhead = now;
+
     // Decay pulses.
     for (const [i, v] of this.pulses) {
       const nv = v - 0.045;
