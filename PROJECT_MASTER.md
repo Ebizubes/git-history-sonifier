@@ -68,6 +68,18 @@ playback schedule  ───────  the SECOND shared contract
   additions: number, deletions: number, message: string }
 ```
 
+*Additive fields (contract-safe — consumers may ignore them):* `github.js`
+also attaches `estimated: boolean` to each commit — `true` when its line counts
+came from the `estimateChurn()` fallback instead of GitHub's real per-commit
+`stats`. The returned array additionally carries
+`commits.meta = { estimated: number, total: number, rateLimited: boolean }`
+so the UI can honestly flag how many counts are estimates. Real counts are the
+default: `fetchCommits` fetches up to `MAX_COMMITS` (25) per-commit details with
+a concurrency of 5, caches each `{additions, deletions}` by SHA (in-memory +
+`localStorage` key `ghs:stats:<sha>`), and only estimates a commit when its
+detail request fails or is rate-limited (HTTP 403). Pass `{ token }` to send
+`Authorization: Bearer <token>` and lift the anonymous 60/hr limit to 5000/hr.
+
 **2. Playback schedule** (produced by `/audio`, consumed by `/visual` + `/ui`).
 An array of entries plus `.totalDuration` (seconds) and `.voices` (Map):
 
@@ -120,6 +132,9 @@ Then open the printed local URL. Click **Load mock data** → **Play** to try it
 with no network, or type a repo like `facebook/react` and click **Fetch**.
 
 > Note: the GitHub list endpoint doesn't return per-commit line counts, so
-> `github.js` estimates churn from the commit message/position by default
-> (no extra API calls). Pass `{ exact: true }` to `fetchCommits` to fetch
-> exact additions/deletions per commit (rate-limit heavy).
+> `github.js` fetches each commit's detail for **real** additions/deletions by
+> default (1 + up to 25 requests, concurrency-limited and cached by SHA). If a
+> detail request is rate-limited (403) or fails, that commit falls back to an
+> estimate and is flagged `estimated: true`; the UI shows a badge when any are.
+> Pass `{ token }` to `fetchCommits` to raise the 60/hr anonymous limit to
+> 5000/hr.

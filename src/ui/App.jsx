@@ -21,6 +21,8 @@ export default function App() {
   const [status, setStatus] = useState('idle'); // idle | loading | ready | playing | paused
   const [error, setError] = useState('');
   const [nowPlaying, setNowPlaying] = useState(null);
+  // { estimated, total, rateLimited } from the last real fetch; null for mock data.
+  const [fetchMeta, setFetchMeta] = useState(null);
 
   // Set up renderer + player once.
   useEffect(() => {
@@ -60,14 +62,17 @@ export default function App() {
 
   function handleMock() {
     setError('');
+    setFetchMeta(null);
     loadCommits(mockCommits);
   }
 
   async function handleFetch() {
     setError('');
+    setFetchMeta(null);
     setStatus('loading');
     try {
-      const list = await fetchCommits(repo, { perPage: 60 });
+      const list = await fetchCommits(repo);
+      setFetchMeta(list.meta || null);
       loadCommits(list);
     } catch (e) {
       setError(e.message || String(e));
@@ -167,6 +172,15 @@ export default function App() {
             ? `${commits.length} commits · ${schedule.totalDuration.toFixed(0)}s piece`
             : 'No data loaded'}
         </span>
+        {fetchMeta && fetchMeta.estimated > 0 && (
+          <span
+            className="estbadge"
+            title="GitHub's anonymous rate limit (60/hr) was hit, so some commits fall back to estimated line counts."
+          >
+            ⚠ {fetchMeta.estimated} of {fetchMeta.total} line counts estimated
+            {fetchMeta.rateLimited ? ' (rate-limited)' : ''}
+          </span>
+        )}
       </section>
 
       <section className="stage">
